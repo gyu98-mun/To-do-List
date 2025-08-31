@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>ToDoList</title>
+  <style>
+    #input { width: 350px; height: 30px; font-size: 16px; }
+    #addbtn { width: 60px; height: 35px; font-size: 14px; }
+    #filterbtn, #hideDoneBtn { width: 150px; height: 35px; font-size: 14px; }
+
+    #ToDoList { list-style: none; padding-left: 0; }
+    #ToDoList li {
+      display: flex; align-items: center; justify-content: flex-start;
+      gap: 8px; margin: 6px 0; flex-wrap: wrap; padding: 4px 8px; border: 1px solid #eee;
+      cursor: move;
+    }
+    #title { font-size: 30px;}
+    #ToDoList li.drag-over { outline: 2px dashed #888; }
+    .num  { width: 30px; text-align: right; }
+    .text { flex: 1; }
+    .date { font-size: 12px; color: gray; margin-left: 5px; }
+    .done { text-decoration: line-through; color: gray; }
+  </style>
+</head>
+<body>
+  <input type="text" id="input" placeholder="할 일" />
+  <button id="addbtn">추가</button>
+  <button id="filterbtn">오늘 추가한 것만 보기</button>
+  <button id="hideDoneBtn">완료된 항목 숨기기</button>
+  <h2 id="title">할일 리스트</h2>
+  <ul id="ToDoList"></ul>
+
+  <script>
+    const input  = document.getElementById("input");
+    const list   = document.getElementById("ToDoList");
+    const addBtn = document.getElementById("addbtn");
+    const filterBtn = document.getElementById("filterbtn");
+    const hideDoneBtn = document.getElementById("hideDoneBtn");
+
+    let tasks = [];
+    let todayOnly = false;
+    let doneHidden = false;
+
+    const save = () => localStorage.setItem("tasks", JSON.stringify(tasks));
+    const load = () => (tasks = JSON.parse(localStorage.getItem("tasks") || "[]"));
+
+    // 날짜 포맷: YYYY-MM-DD HH:mm
+    const fmt = (d)=>{
+      const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), da=String(d.getDate()).padStart(2,"0");
+      const h=String(d.getHours()).padStart(2,"0"), mi=String(d.getMinutes()).padStart(2,"0");
+      return `${y}-${m}-${da} ${h}:${mi}`;
+    };
+    const todayStr = ()=>{
+      const t=new Date();
+      return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`;
+    };
+    const move = (arr, from, to) => { if (from===to) return; const x=arr.splice(from,1)[0]; arr.splice(to,0,x); };
+
+    function render() {
+      list.innerHTML = "";
+      const tstr = todayStr();
+
+      // 오늘 필터 + 완료 숨김 조건 반영한 인덱스 목록
+      const idxs = tasks
+        .map((t,i)=>({t,i}))
+        .filter(({t}) => (!todayOnly || t.date.startsWith(tstr)) && (!doneHidden || !t.done))
+        .map(({i})=>i);
+
+      idxs.forEach((realIdx, visibleIdx) => {
+        const t = tasks[realIdx];
+
+        const li = document.createElement("li");
+        li.draggable = true;
+        li.dataset.index = realIdx;
+
+        const num  = document.createElement("span");
+        num.className = "num";
+        num.textContent = (visibleIdx + 1) + ".";
+
+        const text = document.createElement("span");
+        text.className = "text";
+        text.textContent = t.text;
+        if (t.done) text.classList.add("done");
+
+        const date = document.createElement("span");
+        date.className = "date";
+        date.textContent = "(" + t.date + ")";
+
+        const done = document.createElement("button");
+        done.textContent = "완료";
+        done.onclick = () => { t.done = !t.done; save(); render(); };
+
+        const del  = document.createElement("button");
+        del.textContent = "삭제";
+        del.onclick = () => { tasks.splice(realIdx, 1); save(); render(); };
+
+        // Drag & Drop
+        li.addEventListener("dragstart", (e) => {
+          e.dataTransfer.setData("text/plain", li.dataset.index);
+        });
+        li.addEventListener("dragover", (e) => { e.preventDefault(); li.classList.add("drag-over"); });
+        li.addEventListener("dragleave", () => li.classList.remove("drag-over"));
+        li.addEventListener("drop", (e) => {
+          e.preventDefault(); li.classList.remove("drag-over");
+          const from = Number(e.dataTransfer.getData("text/plain"));
+          const to   = Number(li.dataset.index);
+          move(tasks, from, to); save(); render();
+        });
+
+        li.append(num, text, date, done, del);
+        list.appendChild(li);
+      });
+    }
+
+    function addTask() {
+      const val = input.value.trim();
+      if (!val) return;
+      tasks.push({ text: val, done: false, date: fmt(new Date()) });
+      save(); render();
+      input.value = ""; input.focus();
+    }
+
+    addBtn.addEventListener("click", addTask);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") addTask(); });
+
+    filterBtn.addEventListener("click", () => {
+      todayOnly = !todayOnly;
+      filterBtn.textContent = todayOnly ? "전체 보기" : "오늘 추가한 것만 보기";
+      render();
+    });
+
+    hideDoneBtn.addEventListener("click", () => {
+      doneHidden = !doneHidden;
+      hideDoneBtn.textContent = doneHidden ? "완료된 항목 보이기" : "완료된 항목 숨기기";
+      render();
+    });
+
+    load(); render();
+  </script>
+</body>
+</html>
